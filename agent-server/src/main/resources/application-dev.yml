@@ -1,0 +1,13 @@
+# 本地 MySQL（默认开发环境）
+# 安装与建库见：doc/setup/02-mysql-install.md
+
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://127.0.0.1:3306/agent_ai?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: root
+    password: root
+
+agent:
+  datasource:
+    mode: mysql

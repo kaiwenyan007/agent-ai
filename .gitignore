@@ -1,0 +1,23 @@
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Build
+target/
+dist/
+node_modules/
+
+# Logs & local data
+logs/
+*.log
+data/
+.chroma/
+
+# Secrets
+.env
+application-local.yml
+
+# OS
+.DS_Store
+Thumbs.db
