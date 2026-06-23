@@ -1,6 +1,7 @@
 package com.agent.controller;
 
 import com.agent.common.ApiResponse;
+import com.agent.dto.FetchModelsRequest;
 import com.agent.dto.LlmSettingsResponse;
 import com.agent.dto.ModelsResponse;
 import com.agent.dto.UpdateLlmSettingsRequest;
@@ -8,6 +9,7 @@ import com.agent.service.LlmSettingsService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -34,5 +36,10 @@ public class SettingsController {
     @GetMapping("/models")
     public ApiResponse<ModelsResponse> listModels() {
         return ApiResponse.ok(llmSettingsService.listModels());
+    }
+
+    @PostMapping("/models")
+    public ApiResponse<ModelsResponse> fetchModels(@Valid @RequestBody FetchModelsRequest request) {
+        return ApiResponse.ok(llmSettingsService.fetchModels(request));
     }
 }

@@ -1,36 +1,29 @@
 # Frontend（Vue 3）
 
-本目录在 **v0.4** 迭代中初始化。
+Agent AI Web UI，v0.4 起可用。
 
-## 计划技术栈
+## 技术栈
 
-- Vue 3 + TypeScript
-- Vite
-- Pinia（状态）
-- Vue Router
-- Axios + EventSource（SSE）
+- Vue 3 + TypeScript + Vite
+- **[MateChat](https://github.com/DevCloudFE/MateChat)** — 华为开源 AI 对话 UI 组件库
+- vue-devui + @devui-design/icons
+- Pinia + Vue Router + Axios
 
-## 初始化命令（v0.4 执行）
+## 开发
 
 ```powershell
-cd C:\Users\12782\dev\agent-ai\frontend
-npm create vite@latest . -- --template vue-ts
-npm install axios pinia vue-router
+cd frontend
+npm install
 npm run dev
 ```
 
-默认开发地址：http://localhost:5173  
-后端 API：http://localhost:8080
+默认地址：http://localhost:5173  
+后端 API：http://localhost:8080（Vite 已配置 `/api` 代理）
 
-## 页面规划
+## 页面
 
-| 路由 | 版本 |
+| 路由 | 说明 |
 |------|------|
-| `/login` | v0.4 |
-| `/chat` | v0.4 / v0.5 流式 |
-| `/settings` | v0.4 |
-| `/knowledge` | v0.7 |
-| `/stats` | v0.8 |
-| `/boot` | v0.8（或登录后内嵌） |
-
-详见 [doc/iterations/v0.4-conversation.md](../doc/iterations/v0.4-conversation.md)。
+| `/login` | 登录 / 注册 |
+| `/chat` | 会话列表 + 消息（v0.5 接入流式 AI） |
+| `/settings` | LLM API 配置 |

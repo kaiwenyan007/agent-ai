@@ -8,6 +8,7 @@ import cn.hutool.json.JSONArray;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.agent.common.BusinessException;
+import com.agent.dto.FetchModelsRequest;
 import com.agent.dto.LlmSettingsResponse;
 import com.agent.dto.ModelsResponse;
 import com.agent.dto.UpdateLlmSettingsRequest;
@@ -50,11 +51,24 @@ public class LlmSettingsService {
 
     public ModelsResponse listModels() {
         UserApiConfig config = requireConfig(currentUserId());
-        if (!isApiConfigured(config)) {
+        return fetchModels(config.getBaseUrl(), config.getApiKey());
+    }
+
+    public ModelsResponse fetchModels(FetchModelsRequest request) {
+        UserApiConfig config = requireConfig(currentUserId());
+        String baseUrl = StrUtil.trim(request.getBaseUrl());
+        String apiKey = StrUtil.trim(request.getApiKey());
+        if (StrUtil.isBlank(apiKey)) {
+            apiKey = config.getApiKey();
+        }
+        return fetchModels(baseUrl, apiKey);
+    }
+
+    private ModelsResponse fetchModels(String baseUrl, String apiKey) {
+        if (StrUtil.isBlank(baseUrl) || StrUtil.isBlank(apiKey)) {
             return new ModelsResponse(DEFAULT_MODELS, false);
         }
-
-        List<String> remote = fetchRemoteModels(config);
+        List<String> remote = fetchRemoteModels(baseUrl, apiKey);
         if (remote.isEmpty()) {
             return new ModelsResponse(DEFAULT_MODELS, false);
         }
@@ -101,11 +115,11 @@ public class LlmSettingsService {
         return apiKey.substring(0, 4) + "****" + apiKey.substring(apiKey.length() - 4);
     }
 
-    private List<String> fetchRemoteModels(UserApiConfig config) {
-        String url = StrUtil.removeSuffix(config.getBaseUrl(), "/") + "/models";
+    private List<String> fetchRemoteModels(String baseUrl, String apiKey) {
+        String url = StrUtil.removeSuffix(baseUrl, "/") + "/models";
         try {
             HttpResponse response = HttpRequest.get(url)
-                    .header("Authorization", "Bearer " + config.getApiKey())
+                    .header("Authorization", "Bearer " + apiKey)
                     .timeout(10_000)
                     .execute();
             if (!response.isOk()) {
