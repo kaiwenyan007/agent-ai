@@ -55,6 +55,9 @@ public class AuthService {
 
         UserApiConfig apiConfig = new UserApiConfig();
         apiConfig.setUserId(user.getId());
+        apiConfig.setApiKey("");
+        apiConfig.setBaseUrl("https://api.deepseek.com");
+        apiConfig.setModel("deepseek-chat");
         userApiConfigMapper.insert(apiConfig);
 
         UserKnowledgeConfig knowledgeConfig = new UserKnowledgeConfig();

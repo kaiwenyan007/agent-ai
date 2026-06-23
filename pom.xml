@@ -24,6 +24,7 @@
 
     <properties>
         <java.version>21</java.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <mybatis-plus.version>3.5.9</mybatis-plus.version>
         <hutool.version>5.8.34</hutool.version>
         <spring-ai.version>1.0.0</spring-ai.version>

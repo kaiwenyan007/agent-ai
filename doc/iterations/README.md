@@ -4,9 +4,9 @@
 
 | 版本 | 文档 | 状态 |
 |------|------|------|
-| v0.1 | [v0.1-project-skeleton.md](./v0.1-project-skeleton.md) | 骨架已生成，请验收 |
-| v0.2 | [v0.2-auth.md](./v0.2-auth.md) | 待实现 |
-| v0.3 | [v0.3-api-config.md](./v0.3-api-config.md) | 待实现 |
+| v0.1 | [v0.1-project-skeleton.md](./v0.1-project-skeleton.md) | ✅ 已完成 |
+| v0.2 | [v0.2-auth.md](./v0.2-auth.md) | ✅ 已完成 |
+| v0.3 | [v0.3-api-config.md](./v0.3-api-config.md) | ✅ 已完成 |
 | v0.4 | [v0.4-conversation.md](./v0.4-conversation.md) | 待实现 |
 | v0.5 | [v0.5-spring-ai-chat.md](./v0.5-spring-ai-chat.md) | 待实现 |
 | v0.6 | [v0.6-tools.md](./v0.6-tools.md) | 待实现 |

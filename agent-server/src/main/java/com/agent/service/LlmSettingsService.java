@@ -1,0 +1,144 @@
+package com.agent.service;
+
+import cn.dev33.satoken.stp.StpUtil;
+import cn.hutool.core.util.StrUtil;
+import cn.hutool.http.HttpRequest;
+import cn.hutool.http.HttpResponse;
+import cn.hutool.json.JSONArray;
+import cn.hutool.json.JSONObject;
+import cn.hutool.json.JSONUtil;
+import com.agent.common.BusinessException;
+import com.agent.dto.LlmSettingsResponse;
+import com.agent.dto.ModelsResponse;
+import com.agent.dto.UpdateLlmSettingsRequest;
+import com.agent.entity.UserApiConfig;
+import com.agent.mapper.UserApiConfigMapper;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+
+import java.util.ArrayList;
+import java.util.List;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class LlmSettingsService {
+
+    private static final List<String> DEFAULT_MODELS = List.of("deepseek-chat", "deepseek-reasoner");
+
+    private final UserApiConfigMapper userApiConfigMapper;
+
+    public LlmSettingsResponse getCurrentUserSettings() {
+        UserApiConfig config = requireConfig(currentUserId());
+        return toResponse(config);
+    }
+
+    public LlmSettingsResponse saveCurrentUserSettings(UpdateLlmSettingsRequest request) {
+        Long userId = currentUserId();
+        UserApiConfig config = requireConfig(userId);
+
+        config.setBaseUrl(StrUtil.trim(request.getBaseUrl()));
+        config.setModel(StrUtil.trim(request.getModel()));
+        if (StrUtil.isNotBlank(request.getApiKey())) {
+            config.setApiKey(StrUtil.trim(request.getApiKey()));
+        }
+
+        userApiConfigMapper.updateById(config);
+        return toResponse(config);
+    }
+
+    public ModelsResponse listModels() {
+        UserApiConfig config = requireConfig(currentUserId());
+        if (!isApiConfigured(config)) {
+            return new ModelsResponse(DEFAULT_MODELS, false);
+        }
+
+        List<String> remote = fetchRemoteModels(config);
+        if (remote.isEmpty()) {
+            return new ModelsResponse(DEFAULT_MODELS, false);
+        }
+        return new ModelsResponse(remote, true);
+    }
+
+    public boolean isApiConfigured(Long userId) {
+        UserApiConfig config = userApiConfigMapper.selectById(userId);
+        return config != null && isApiConfigured(config);
+    }
+
+    private boolean isApiConfigured(UserApiConfig config) {
+        return StrUtil.isAllNotBlank(config.getApiKey(), config.getBaseUrl(), config.getModel());
+    }
+
+    private UserApiConfig requireConfig(Long userId) {
+        UserApiConfig config = userApiConfigMapper.selectById(userId);
+        if (config == null) {
+            throw new BusinessException("API 配置不存在，请重新注册或联系管理员");
+        }
+        return config;
+    }
+
+    private long currentUserId() {
+        return StpUtil.getLoginIdAsLong();
+    }
+
+    private LlmSettingsResponse toResponse(UserApiConfig config) {
+        return new LlmSettingsResponse(
+                config.getBaseUrl(),
+                config.getModel(),
+                maskApiKey(config.getApiKey()),
+                isApiConfigured(config)
+        );
+    }
+
+    static String maskApiKey(String apiKey) {
+        if (StrUtil.isBlank(apiKey)) {
+            return "";
+        }
+        if (apiKey.length() <= 8) {
+            return "****";
+        }
+        return apiKey.substring(0, 4) + "****" + apiKey.substring(apiKey.length() - 4);
+    }
+
+    private List<String> fetchRemoteModels(UserApiConfig config) {
+        String url = StrUtil.removeSuffix(config.getBaseUrl(), "/") + "/models";
+        try {
+            HttpResponse response = HttpRequest.get(url)
+                    .header("Authorization", "Bearer " + config.getApiKey())
+                    .timeout(10_000)
+                    .execute();
+            if (!response.isOk()) {
+                log.warn("拉取模型列表失败: status={}, url={}", response.getStatus(), url);
+                return List.of();
+            }
+            return parseModels(response.body());
+        } catch (Exception ex) {
+            log.warn("拉取模型列表异常: url={}", url, ex);
+            return List.of();
+        }
+    }
+
+    private List<String> parseModels(String body) {
+        if (!JSONUtil.isTypeJSON(body)) {
+            return List.of();
+        }
+        JSONObject json = JSONUtil.parseObj(body);
+        JSONArray data = json.getJSONArray("data");
+        if (data == null || data.isEmpty()) {
+            return List.of();
+        }
+        List<String> models = new ArrayList<>();
+        for (int i = 0; i < data.size(); i++) {
+            JSONObject item = data.getJSONObject(i);
+            if (item == null) {
+                continue;
+            }
+            String id = item.getStr("id");
+            if (StrUtil.isNotBlank(id)) {
+                models.add(id);
+            }
+        }
+        return models;
+    }
+}
