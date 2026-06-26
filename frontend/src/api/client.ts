@@ -1,3 +1,7 @@
+/**
+ * Axios 客户端与 Token 存取。
+ * 请求拦截器自动附加 Authorization: Bearer {token}。
+ */
 import axios from 'axios'
 
 const TOKEN_KEY = 'agent_ai_token'
@@ -11,6 +15,7 @@ export const apiClient = axios.create({
   withCredentials: false,
 })
 
+//  outgoing：附加 Sa-Token
 apiClient.interceptors.request.use((config) => {
   const token = localStorage.getItem(TOKEN_KEY)
   if (token) {
@@ -19,6 +24,7 @@ apiClient.interceptors.request.use((config) => {
   return config
 })
 
+// incoming：401 时清除本地 token
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -29,10 +35,12 @@ apiClient.interceptors.response.use(
   },
 )
 
+/** 登录成功后持久化 token */
 export function saveToken(token: string) {
   localStorage.setItem(TOKEN_KEY, token)
 }
 
+/** 注销或 401 时清除 token */
 export function clearToken() {
   localStorage.removeItem(TOKEN_KEY)
 }

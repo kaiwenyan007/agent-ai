@@ -1,6 +1,8 @@
+/**
+ * 会话列表与消息 Pinia Store，供侧栏 SESSIONS 与 ChatView 共享。
+ */
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { streamChat } from '../api/chat'
 import {
   createConversation,
   deleteConversation,
@@ -14,6 +16,7 @@ export const useConversationStore = defineStore('conversation', () => {
   const activeId = ref<number | null>(null)
   const messages = ref<ChatMessage[]>([])
   const loading = ref(false)
+  /** 是否已拉取过会话列表（避免重复 bootstrap） */
   const initialized = ref(false)
   const streaming = ref(false)
 
@@ -24,6 +27,7 @@ export const useConversationStore = defineStore('conversation', () => {
     }
   }
 
+  /** 首次进入 CHAT 页时加载会话列表 */
   async function bootstrap() {
     if (initialized.value) {
       return
@@ -41,6 +45,7 @@ export const useConversationStore = defineStore('conversation', () => {
     conversations.value = await listConversations()
   }
 
+  /** 切换会话并加载消息 */
   async function selectConversation(id: number) {
     activeId.value = id
     messages.value = await listMessages(id)
@@ -64,56 +69,7 @@ export const useConversationStore = defineStore('conversation', () => {
     messages.value = activeId.value ? await listMessages(activeId.value) : []
   }
 
-  async function sendChatMessage(
-    content: string,
-    handlers?: { onDelta?: (chunk: string) => void; onStatus?: (status: string) => void },
-  ) {
-    if (!activeId.value) {
-      await createNew()
-    }
-    if (!activeId.value) {
-      return
-    }
-
-    const conversationId = activeId.value
-    streaming.value = true
-    handlers?.onStatus?.('正在连接模型...')
-
-    const tempAssistantId = -Date.now()
-    const assistantMsg: ChatMessage = {
-      id: tempAssistantId,
-      conversationId,
-      role: 'assistant',
-      content: '',
-      createdAt: new Date().toISOString(),
-    }
-
-    try {
-      await streamChat(conversationId, content, {
-        onDelta: (chunk) => {
-          if (assistantMsg.content === '') {
-            handlers?.onStatus?.('')
-          }
-          assistantMsg.content += chunk
-          handlers?.onDelta?.(chunk)
-        },
-        onDone: async () => {
-          await selectConversation(conversationId)
-          await refreshConversations()
-        },
-        onError: (message) => {
-          throw new Error(message)
-        },
-      })
-    } catch (error) {
-      await selectConversation(conversationId)
-      await refreshConversations()
-      throw error
-    } finally {
-      streaming.value = false
-    }
-  }
-
+  /** 侧栏会话标题截断（对标 agent-demo 20 字） */
   function truncateTitle(title: string, max = 20) {
     return title.length > max ? `${title.slice(0, max)}…` : title
   }
@@ -131,7 +87,6 @@ export const useConversationStore = defineStore('conversation', () => {
     selectConversation,
     createNew,
     deleteActive,
-    sendChatMessage,
     truncateTitle,
   }
 })

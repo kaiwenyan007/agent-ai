@@ -1,7 +1,11 @@
+/**
+ * 鉴权相关 API，对应后端 /api/auth。
+ */
 import type { ApiResponse, LoginResponse } from '../types/api'
 import { apiClient, clearToken, saveToken } from './client'
 import { toApiError } from './errors'
 
+/** POST /api/auth/login — 登录并保存 token */
 export async function login(username: string, password: string) {
   try {
     const { data } = await apiClient.post<ApiResponse<LoginResponse>>('/api/auth/login', {
@@ -18,6 +22,7 @@ export async function login(username: string, password: string) {
   }
 }
 
+/** POST /api/auth/register — 仅注册，不自动登录 */
 export async function register(username: string, password: string) {
   try {
     const { data } = await apiClient.post<ApiResponse<null>>('/api/auth/register', {
@@ -32,6 +37,7 @@ export async function register(username: string, password: string) {
   }
 }
 
+/** POST /api/auth/logout — 注销并清除本地 token */
 export async function logout() {
   try {
     await apiClient.post('/api/auth/logout')
@@ -40,6 +46,7 @@ export async function logout() {
   }
 }
 
+/** GET /api/auth/me — 恢复会话时校验 token 有效性 */
 export async function fetchProfile() {
   try {
     const { data } = await apiClient.get<ApiResponse<{ id: number; username: string }>>('/api/auth/me')

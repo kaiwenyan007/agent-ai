@@ -1,7 +1,12 @@
+/**
+ * 会话与消息 CRUD，对应后端 /api/conversations。
+ * v0.5 主对话路径见 api/chat.ts 的 streamChat（/api/chat/stream）。
+ */
 import type { ApiResponse, Conversation, ChatMessage } from '../types/api'
 import { apiClient } from './client'
 import { toApiError } from './errors'
 
+/** GET /api/conversations — 当前用户会话列表 */
 export async function listConversations() {
   try {
     const { data } = await apiClient.get<ApiResponse<Conversation[]>>('/api/conversations')
@@ -14,6 +19,7 @@ export async function listConversations() {
   }
 }
 
+/** POST /api/conversations — 新建会话 */
 export async function createConversation(title?: string) {
   try {
     const { data } = await apiClient.post<ApiResponse<Conversation>>(
@@ -29,6 +35,7 @@ export async function createConversation(title?: string) {
   }
 }
 
+/** DELETE /api/conversations/{id} */
 export async function deleteConversation(id: number) {
   try {
     const { data } = await apiClient.delete<ApiResponse<null>>(`/api/conversations/${id}`)
@@ -40,6 +47,7 @@ export async function deleteConversation(id: number) {
   }
 }
 
+/** GET /api/conversations/{id}/messages — 按时间正序 */
 export async function listMessages(conversationId: number) {
   try {
     const { data } = await apiClient.get<ApiResponse<ChatMessage[]>>(
@@ -54,6 +62,10 @@ export async function listMessages(conversationId: number) {
   }
 }
 
+/**
+ * POST /api/conversations/{id}/messages — 手动追加 user 消息。
+ * 正常对话请使用 chat.ts 的 streamChat。
+ */
 export async function appendMessage(conversationId: number, content: string) {
   try {
     const { data } = await apiClient.post<ApiResponse<ChatMessage>>(

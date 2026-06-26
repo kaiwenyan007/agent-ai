@@ -12,12 +12,18 @@ import java.math.BigDecimal;
 import java.util.Comparator;
 import java.util.List;
 
+/**
+ * Token 用量聚合统计（数据来源：{@code token_usage} 表）。
+ */
 @Service
 @RequiredArgsConstructor
 public class TokenStatsService {
 
     private final TokenUsageMapper tokenUsageMapper;
 
+    /**
+     * 汇总当前用户全部 Token 记录，并返回最近 20 条明细。
+     */
     public TokenSummaryResponse getCurrentUserSummary() {
         Long userId = StpUtil.getLoginIdAsLong();
         List<TokenUsage> records = tokenUsageMapper.selectList(

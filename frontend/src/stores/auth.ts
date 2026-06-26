@@ -1,3 +1,6 @@
+/**
+ * 登录态 Pinia Store：token 存 localStorage，profile 存内存。
+ */
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { fetchProfile, login as apiLogin, logout as apiLogout, register as apiRegister } from '../api/auth'
@@ -8,6 +11,7 @@ export const useAuthStore = defineStore('auth', () => {
   const userId = ref<number | null>(null)
   const loading = ref(false)
 
+  /** 登录并更新本地 profile */
   async function login(usernameInput: string, password: string) {
     loading.value = true
     try {
@@ -19,6 +23,7 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  /** 注册成功后自动登录 */
   async function register(usernameInput: string, password: string) {
     loading.value = true
     try {
@@ -29,12 +34,17 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  /** 调用后端 logout 并清空本地状态 */
   async function logout() {
     await apiLogout()
     username.value = null
     userId.value = null
   }
 
+  /**
+   * 应用启动时根据 localStorage token 恢复会话。
+   * @returns false 表示无 token 或 token 已失效
+   */
   async function restoreSession() {
     if (!getToken()) {
       return false

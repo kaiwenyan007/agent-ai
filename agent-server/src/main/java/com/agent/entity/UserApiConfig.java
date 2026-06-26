@@ -8,6 +8,7 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
+/** 用户 LLM API 配置，主键 user_id 与 users 一对一 */
 @Data
 @TableName("user_api_configs")
 public class UserApiConfig {

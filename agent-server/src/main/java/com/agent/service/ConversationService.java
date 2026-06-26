@@ -20,6 +20,9 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * 会话与消息的持久化及归属校验。
+ */
 @Service
 @RequiredArgsConstructor
 public class ConversationService {
@@ -29,6 +32,9 @@ public class ConversationService {
     private final ConversationMapper conversationMapper;
     private final MessageMapper messageMapper;
 
+    /**
+     * 列出当前登录用户的全部会话。
+     */
     public List<ConversationResponse> listCurrentUserConversations() {
         Long userId = currentUserId();
         List<Conversation> conversations = conversationMapper.selectList(
@@ -39,6 +45,11 @@ public class ConversationService {
         return conversations.stream().map(this::toConversationResponse).toList();
     }
 
+    /**
+     * 创建空会话。
+     *
+     * @param request 可为 null；title 为空时使用 {@link Conversation#DEFAULT_TITLE}
+     */
     public ConversationResponse createConversation(CreateConversationRequest request) {
         Conversation conversation = new Conversation();
         conversation.setUserId(currentUserId());
@@ -48,11 +59,17 @@ public class ConversationService {
         return toConversationResponse(conversation);
     }
 
+    /**
+     * 删除会话（逻辑删除），须为当前用户所有。
+     */
     public void deleteConversation(Long conversationId) {
         Conversation conversation = requireOwnedConversation(conversationId);
         conversationMapper.deleteById(conversation.getId());
     }
 
+    /**
+     * 按时间正序返回会话内全部消息。
+     */
     public List<MessageResponse> listMessages(Long conversationId) {
         requireOwnedConversation(conversationId);
         List<Message> messages = messageMapper.selectList(
@@ -63,6 +80,11 @@ public class ConversationService {
         return messages.stream().map(this::toMessageResponse).toList();
     }
 
+    /**
+     * 追加一条消息，并刷新会话 {@code updated_at}。
+     * <p>
+     * 首条 user 消息会自动将会话标题设为 prompt 前 30 字（对标 agent-demo）。
+     */
     @Transactional
     public MessageResponse appendMessage(Long conversationId, AppendMessageRequest request) {
         Conversation conversation = requireOwnedConversation(conversationId);
@@ -89,6 +111,9 @@ public class ConversationService {
         return toMessageResponse(message);
     }
 
+    /**
+     * 仅当会话仍为默认标题且这是第一条 user 消息时，用 prompt 生成标题。
+     */
     private void maybeUpdateTitle(Conversation conversation, String role, String content) {
         if (!"user".equals(role)) {
             return;
@@ -107,6 +132,9 @@ public class ConversationService {
         conversation.setTitle(buildTitleFromPrompt(content));
     }
 
+    /**
+     * 截取 prompt 前 30 字符作为会话标题，超出追加省略号。
+     */
     static String buildTitleFromPrompt(String prompt) {
         String trimmed = StrUtil.trim(prompt);
         if (trimmed.length() <= 30) {
@@ -115,6 +143,7 @@ public class ConversationService {
         return StrUtil.subPre(trimmed, 30) + "\u2026";
     }
 
+    /** 校验会话存在且归属当前用户。 */
     private Conversation requireOwnedConversation(Long conversationId) {
         Conversation conversation = conversationMapper.selectById(conversationId);
         if (conversation == null) {

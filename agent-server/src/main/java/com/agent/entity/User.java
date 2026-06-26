@@ -9,6 +9,7 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
+/** 系统用户，密码以 BCrypt 哈希存储 */
 @Data
 @TableName("users")
 public class User {

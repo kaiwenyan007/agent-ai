@@ -5,11 +5,13 @@ import lombok.Data;
 
 import java.util.List;
 
+/** GET/POST /api/settings/models 响应 data */
 @Data
 @AllArgsConstructor
 public class ModelsResponse {
 
     private List<String> models;
-    /** true=远端拉取，false=默认列表兜底 */
+
+    /** true 表示来自远程 /models 接口；false 为本地兜底列表 */
     private boolean fromRemote;
 }

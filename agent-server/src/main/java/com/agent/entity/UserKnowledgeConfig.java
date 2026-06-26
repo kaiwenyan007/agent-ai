@@ -8,6 +8,7 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
+/** 用户知识库路径配置，v0.7 RAG 使用 */
 @Data
 @TableName("user_knowledge_configs")
 public class UserKnowledgeConfig {

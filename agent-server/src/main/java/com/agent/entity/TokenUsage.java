@@ -10,6 +10,7 @@ import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+/** 单次对话 Token 用量记录，流式对话结束后写入 */
 @Data
 @TableName("token_usage")
 public class TokenUsage {

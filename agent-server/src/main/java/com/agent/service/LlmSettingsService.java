@@ -21,20 +21,28 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 用户 LLM API 配置的读写与远程模型列表拉取。
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class LlmSettingsService {
 
+    /** 远程拉取失败时的本地兜底模型列表。 */
     private static final List<String> DEFAULT_MODELS = List.of("deepseek-chat", "deepseek-reasoner");
 
     private final UserApiConfigMapper userApiConfigMapper;
 
+    /** 读取当前用户配置（Key 脱敏）。 */
     public LlmSettingsResponse getCurrentUserSettings() {
         UserApiConfig config = requireConfig(currentUserId());
         return toResponse(config);
     }
 
+    /**
+     * 保存 Base URL、Model；仅当 apiKey 非空时才更新 Key。
+     */
     public LlmSettingsResponse saveCurrentUserSettings(UpdateLlmSettingsRequest request) {
         Long userId = currentUserId();
         UserApiConfig config = requireConfig(userId);
@@ -49,11 +57,15 @@ public class LlmSettingsService {
         return toResponse(config);
     }
 
+    /** 用数据库中已保存的配置拉取模型。 */
     public ModelsResponse listModels() {
         UserApiConfig config = requireConfig(currentUserId());
         return fetchModels(config.getBaseUrl(), config.getApiKey());
     }
 
+    /**
+     * 用表单参数拉取模型；apiKey 为空时回退到已保存 Key。
+     */
     public ModelsResponse fetchModels(FetchModelsRequest request) {
         UserApiConfig config = requireConfig(currentUserId());
         String baseUrl = StrUtil.trim(request.getBaseUrl());
@@ -64,6 +76,10 @@ public class LlmSettingsService {
         return fetchModels(baseUrl, apiKey);
     }
 
+    /**
+     * 调用 OpenAI 兼容 {@code GET /models} 接口。
+     * Key 或 URL 缺失时返回本地默认列表，{@code fromRemote=false}。
+     */
     private ModelsResponse fetchModels(String baseUrl, String apiKey) {
         if (StrUtil.isBlank(baseUrl) || StrUtil.isBlank(apiKey)) {
             return new ModelsResponse(DEFAULT_MODELS, false);
@@ -75,6 +91,10 @@ public class LlmSettingsService {
         return new ModelsResponse(remote, true);
     }
 
+    /**
+     * 判断用户是否已完成 LLM 配置（Key + URL + Model 三者非空）。
+     * 聊天接口在调用前会检查此条件。
+     */
     public boolean isApiConfigured(Long userId) {
         UserApiConfig config = userApiConfigMapper.selectById(userId);
         return config != null && isApiConfigured(config);
@@ -105,6 +125,9 @@ public class LlmSettingsService {
         );
     }
 
+    /**
+     * API Key 脱敏：保留前 4 后 4，中间用 **** 替代。
+     */
     static String maskApiKey(String apiKey) {
         if (StrUtil.isBlank(apiKey)) {
             return "";
@@ -115,6 +138,7 @@ public class LlmSettingsService {
         return apiKey.substring(0, 4) + "****" + apiKey.substring(apiKey.length() - 4);
     }
 
+    /** 请求 {@code {baseUrl}/models}，解析 OpenAI 格式 JSON。 */
     private List<String> fetchRemoteModels(String baseUrl, String apiKey) {
         String url = StrUtil.removeSuffix(baseUrl, "/") + "/models";
         try {

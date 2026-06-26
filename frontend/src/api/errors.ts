@@ -1,3 +1,6 @@
+/**
+ * 将 Axios / 网络 / 业务错误转为用户可读中文提示。
+ */
 import axios from 'axios'
 import type { ApiResponse } from '../types/api'
 

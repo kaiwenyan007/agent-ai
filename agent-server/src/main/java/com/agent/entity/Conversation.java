@@ -9,10 +9,12 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
+/** 对话会话，对应表 conversations */
 @Data
 @TableName("conversations")
 public class Conversation {
 
+    /** 新建会话时的默认标题，首条 user 消息会替换为 prompt 摘要 */
     public static final String DEFAULT_TITLE = "\u65b0\u5bf9\u8bdd";
 
     @TableId(type = IdType.AUTO)

@@ -1,17 +1,15 @@
 package com.agent.dto;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
 import lombok.Data;
 
+/** POST /api/settings/models 请求体 */
 @Data
 public class FetchModelsRequest {
 
-    @NotBlank(message = "Base URL 不能为空")
-    @Size(max = 256, message = "Base URL 长度不能超过 256")
+    @NotBlank(message = "baseUrl 不能为空")
     private String baseUrl;
 
-    /** 留空则使用已保存的 API Key */
-    @Size(max = 512, message = "API Key 长度不能超过 512")
+    /** 留空时使用数据库中已保存的 Key */
     private String apiKey;
 }

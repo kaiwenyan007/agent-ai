@@ -7,6 +7,9 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
+/**
+ * Sa-Token 路由鉴权：除 register / login / health 外，{@code /api/**} 均需登录。
+ */
 @Configuration
 public class SaTokenConfig implements WebMvcConfigurer {
 

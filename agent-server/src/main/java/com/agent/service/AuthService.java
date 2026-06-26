@@ -19,6 +19,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * 用户注册、登录与 Profile 查询。
+ */
 @Service
 @RequiredArgsConstructor
 public class AuthService {
@@ -27,6 +30,11 @@ public class AuthService {
     private final UserApiConfigMapper userApiConfigMapper;
     private final UserKnowledgeConfigMapper userKnowledgeConfigMapper;
 
+    /**
+     * 注册新用户，并初始化 per-user 配置行。
+     * <p>
+     * 同一事务内创建：users、user_api_configs（DeepSeek 默认）、user_knowledge_configs。
+     */
     @Transactional
     public void register(RegisterRequest request) {
         String username = StrUtil.trim(request.getUsername());
@@ -53,6 +61,7 @@ public class AuthService {
         user.setPasswordHash(BCrypt.hashpw(password));
         userMapper.insert(user);
 
+        // 默认 LLM 配置：DeepSeek，Key 留空待用户在设置页填写
         UserApiConfig apiConfig = new UserApiConfig();
         apiConfig.setUserId(user.getId());
         apiConfig.setApiKey("");
@@ -60,11 +69,17 @@ public class AuthService {
         apiConfig.setModel("deepseek-chat");
         userApiConfigMapper.insert(apiConfig);
 
+        // 知识库配置占位，v0.7 启用 RAG 时使用
         UserKnowledgeConfig knowledgeConfig = new UserKnowledgeConfig();
         knowledgeConfig.setUserId(user.getId());
         userKnowledgeConfigMapper.insert(knowledgeConfig);
     }
 
+    /**
+     * 校验用户名密码，签发 Sa-Token。
+     *
+     * @return token 字符串及用户基本信息
+     */
     public LoginResponse login(LoginRequest request) {
         String username = StrUtil.trim(request.getUsername());
         User user = userMapper.selectOne(new LambdaQueryWrapper<User>()
@@ -77,10 +92,14 @@ public class AuthService {
         return new LoginResponse(StpUtil.getTokenValue(), user.getUsername(), user.getId());
     }
 
+    /** 注销当前 token 会话。 */
     public void logout() {
         StpUtil.logout();
     }
 
+    /**
+     * 根据 Sa-Token 登录 ID 查询用户 Profile。
+     */
     public UserProfileResponse currentUser() {
         long userId = StpUtil.getLoginIdAsLong();
         User user = userMapper.selectById(userId);

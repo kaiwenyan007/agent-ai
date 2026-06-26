@@ -9,6 +9,7 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
+/** 单条聊天消息，role: user / assistant / system */
 @Data
 @TableName("messages")
 public class Message {

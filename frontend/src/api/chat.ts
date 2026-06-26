@@ -1,3 +1,11 @@
+/**
+ * SSE 流式对话 API，对应后端 POST /api/chat/stream。
+ *
+ * SSE 事件：
+ * - delta：模型输出片段
+ * - done：流结束，JSON 含 userMessageId / assistantMessageId
+ * - error：调用失败
+ */
 import { getToken } from './client'
 
 const defaultBaseURL = import.meta.env.DEV ? 'http://localhost:8080' : ''
@@ -6,6 +14,7 @@ function apiBaseUrl() {
   return import.meta.env.VITE_API_BASE_URL || defaultBaseURL
 }
 
+/** done 事件 payload */
 export interface ChatStreamDone {
   userMessageId: number
   assistantMessageId: number
@@ -17,6 +26,7 @@ export interface ChatStreamHandlers {
   onError: (message: string) => void
 }
 
+/** 解析单个 SSE 块（event + data 行） */
 function parseSseBlock(block: string, handlers: ChatStreamHandlers) {
   const lines = block.split('\n')
   let event = 'message'
@@ -41,6 +51,10 @@ function parseSseBlock(block: string, handlers: ChatStreamHandlers) {
   }
 }
 
+/**
+ * 发起流式对话。
+ * 使用 fetch + ReadableStream（非 EventSource），以便携带 Authorization 头。
+ */
 export async function streamChat(
   conversationId: number,
   prompt: string,
@@ -68,7 +82,7 @@ export async function streamChat(
         message = json.message
       }
     } catch {
-      // keep raw text
+      // 非 JSON 响应，保留原始 text
     }
     throw new Error(message)
   }
@@ -81,6 +95,7 @@ export async function streamChat(
   const decoder = new TextDecoder()
   let buffer = ''
 
+  // 按 \n\n 分割 SSE 事件块
   while (true) {
     const { done, value } = await reader.read()
     if (done) {
