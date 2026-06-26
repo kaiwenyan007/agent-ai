@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { streamChat } from '../api/chat'
+import { useChatScroll } from '../composables/useChatScroll'
+import { useTypewriter } from '../composables/useTypewriter'
 import { useConversationStore } from '../stores/conversation'
 import { useSettingsStore } from '../stores/settings'
 import { toApiError } from '../api/errors'
@@ -11,16 +13,48 @@ const settings = useSettingsStore()
 const inputValue = ref('')
 const sending = ref(false)
 const error = ref('')
-const streamStatus = ref('')
 const contentRef = ref<HTMLElement | null>(null)
 
-const apiReady = computed(() => settings.configured)
-const canSend = computed(() => apiReady.value && !sending.value && !conv.loading && !conv.streaming)
+const streamingMessageId = ref<number | null>(null)
+const streamStatus = ref('')
+const hasStreamContent = ref(false)
 
-async function scrollToBottom() {
-  await nextTick()
-  if (contentRef.value) {
-    contentRef.value.scrollTop = contentRef.value.scrollHeight
+const {
+  showJumpToBottom,
+  scrollToBottom,
+  preserveScrollOnPrepend,
+  updateScrollState,
+} = useChatScroll(contentRef)
+
+const typewriter = useTypewriter(() => {
+  scrollToBottom(false)
+})
+
+const apiReady = computed(() => settings.configured)
+const canSend = computed(() => apiReady.value && !sending.value && !conv.loading)
+
+function isStreamingMessage(messageId: number) {
+  return sending.value && streamingMessageId.value === messageId
+}
+
+/** 滚到顶部附近时自动加载更早消息 */
+async function loadOlder() {
+  if (!conv.hasMoreMessages || conv.loadingMore) {
+    return
+  }
+  const el = contentRef.value
+  const prevHeight = el?.scrollHeight ?? 0
+  await conv.loadOlderMessages()
+  if (prevHeight > 0) {
+    await preserveScrollOnPrepend(prevHeight)
+  }
+}
+
+function onMessageScroll() {
+  updateScrollState()
+  const el = contentRef.value
+  if (el && el.scrollTop <= 80) {
+    loadOlder()
   }
 }
 
@@ -32,11 +66,12 @@ async function onSubmit() {
 
   sending.value = true
   error.value = ''
-  streamStatus.value = '正在连接模型...'
+  streamStatus.value = '正在发送请求…'
+  hasStreamContent.value = false
+  typewriter.reset()
   inputValue.value = ''
 
-  const conversationId = conv.activeId
-  if (!conversationId) {
+  if (!conv.activeId) {
     await conv.createNew()
   }
   if (!conv.activeId) {
@@ -54,43 +89,55 @@ async function onSubmit() {
   })
 
   const tempAssistantId = tempUserId - 1
-  const assistantMsg = {
+  streamingMessageId.value = tempAssistantId
+  conv.messages.push({
     id: tempAssistantId,
     conversationId: conv.activeId,
     role: 'assistant',
     content: '',
     createdAt: new Date().toISOString(),
-  }
-  conv.messages.push(assistantMsg)
-  await scrollToBottom()
+  })
+  await scrollToBottom(true)
 
   try {
     await streamChat(conv.activeId, text, {
+      onStatus: (message) => {
+        if (!hasStreamContent.value) {
+          streamStatus.value = message
+          scrollToBottom(false)
+        }
+      },
       onDelta: (chunk) => {
-        if (streamStatus.value) {
+        if (!hasStreamContent.value) {
+          hasStreamContent.value = true
           streamStatus.value = ''
         }
-        assistantMsg.content += chunk
-        scrollToBottom()
+        typewriter.enqueue(chunk)
+        conv.appendMessageChunk(tempAssistantId, chunk)
       },
       onDone: async () => {
-        await conv.selectConversation(conv.activeId!)
+        typewriter.flush()
+        streamStatus.value = ''
+        await conv.syncAfterStream()
         await conv.refreshConversations()
-        await scrollToBottom()
+        await scrollToBottom(false)
       },
       onError: (message) => {
         throw new Error(message)
       },
     })
-    streamStatus.value = ''
   } catch (e) {
     error.value = toApiError(e, '对话失败')
     streamStatus.value = ''
     if (conv.activeId) {
-      await conv.selectConversation(conv.activeId)
+      await conv.syncAfterStream()
     }
   } finally {
     sending.value = false
+    streamingMessageId.value = null
+    hasStreamContent.value = false
+    typewriter.reset()
+    updateScrollState()
   }
 }
 
@@ -102,16 +149,10 @@ function onKeydown(event: KeyboardEvent) {
 }
 
 watch(
-  () => conv.messages.length,
-  () => {
-    scrollToBottom()
-  },
-)
-
-watch(
   () => conv.activeId,
-  () => {
-    scrollToBottom()
+  async () => {
+    await nextTick()
+    await scrollToBottom(true)
   },
 )
 
@@ -119,7 +160,7 @@ onMounted(async () => {
   try {
     await settings.loadLlm()
     await conv.bootstrap()
-    await scrollToBottom()
+    await scrollToBottom(true)
   } catch (e) {
     error.value = toApiError(e, '加载失败')
   }
@@ -131,23 +172,58 @@ onMounted(async () => {
     <div class="page-inner">
       <h2 class="hack-title">💬 NEURAL CHAT</h2>
       <p v-if="!apiReady" class="warn-text">[WARN] 请先在 API CONFIG 中配置 Key / URL / Model</p>
-      <p v-else class="hack-caption">// Spring AI 流式对话 · 多轮上下文 · SSE</p>
+      <p v-else class="hack-caption">// 上滑加载历史 · 贴底时跟随输出</p>
       <p v-if="error" class="error-text">{{ error }}</p>
 
-      <div ref="contentRef" class="message-list">
-        <p v-if="conv.loading" class="agent-status">⏳ <span>加载会话...</span></p>
+      <div class="message-scroll-wrap">
+        <div ref="contentRef" class="message-list" @scroll="onMessageScroll">
+          <div v-if="conv.hasMoreMessages" class="load-more-hint">
+            <button
+              type="button"
+              class="load-more-btn"
+              :disabled="conv.loadingMore"
+              @click="loadOlder"
+            >
+              {{ conv.loadingMore ? '加载中…' : '↑ 上滑或点击加载更早消息' }}
+            </button>
+          </div>
 
-        <article
-          v-for="msg in conv.messages"
-          :key="msg.id"
-          class="chat-message"
-          :class="msg.role"
+          <p v-if="conv.loading" class="agent-status">⏳ <span>加载会话...</span></p>
+
+          <article
+            v-for="msg in conv.messages"
+            :key="msg.id"
+            class="chat-message"
+            :class="[msg.role, { streaming: isStreamingMessage(msg.id) }]"
+          >
+            <div class="chat-role">{{ msg.role === 'user' ? 'USER' : 'ASSISTANT' }}</div>
+
+            <template v-if="isStreamingMessage(msg.id)">
+              <p v-if="streamStatus && !hasStreamContent" class="stream-phase">
+                <span class="phase-dot" />
+                {{ streamStatus }}
+              </p>
+              <div v-if="hasStreamContent || typewriter.displayed" class="chat-content">
+                {{ typewriter.displayed }}<span class="cursor-blink">▍</span>
+              </div>
+              <p v-else-if="!streamStatus" class="stream-phase">
+                <span class="phase-dot" />
+                思考中…
+              </p>
+            </template>
+
+            <div v-else class="chat-content">{{ msg.content }}</div>
+          </article>
+        </div>
+
+        <button
+          v-if="showJumpToBottom"
+          type="button"
+          class="jump-bottom-btn"
+          @click="scrollToBottom(true)"
         >
-          <div class="chat-role">{{ msg.role === 'user' ? 'USER' : 'ASSISTANT' }}</div>
-          <div class="chat-content">{{ msg.content || (sending && msg.role === 'assistant' ? '...' : '') }}</div>
-        </article>
-
-        <p v-if="streamStatus" class="agent-status">⏳ <span>{{ streamStatus }}</span></p>
+          ↓ 回到底部
+        </button>
       </div>
     </div>
 
@@ -178,7 +254,8 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  height: 100vh;
+  height: 100%;
+  overflow: hidden;
   padding-bottom: 0;
 }
 
@@ -187,6 +264,16 @@ onMounted(async () => {
   min-height: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+}
+
+.message-scroll-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin-top: 1rem;
 }
 
 .message-list {
@@ -196,8 +283,104 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  margin-top: 1rem;
   padding-bottom: 1rem;
+}
+
+.load-more-hint {
+  display: flex;
+  justify-content: center;
+  padding: 0.25rem 0 0.5rem;
+  flex-shrink: 0;
+}
+
+.load-more-btn {
+  border: 1px dashed var(--hack-border);
+  background: transparent;
+  color: var(--hack-muted);
+  font-size: 0.78rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  cursor: pointer;
+  letter-spacing: 0.03em;
+}
+
+.load-more-btn:hover:not(:disabled) {
+  border-color: var(--hack-cyan);
+  color: var(--hack-cyan);
+}
+
+.load-more-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.jump-bottom-btn {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  z-index: 2;
+  border: 1px solid var(--hack-border);
+  background: rgba(13, 17, 23, 0.92);
+  color: var(--hack-green);
+  font-size: 0.82rem;
+  padding: 0.4rem 0.85rem;
+  border-radius: 999px;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+.jump-bottom-btn:hover {
+  border-color: var(--hack-green);
+  box-shadow: 0 0 12px rgba(0, 255, 65, 0.2);
+}
+
+.chat-message.streaming {
+  border-color: rgba(0, 229, 255, 0.35);
+  box-shadow: 0 0 12px rgba(0, 229, 255, 0.08);
+}
+
+.stream-phase {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  color: var(--hack-muted);
+  font-size: 0.85rem;
+  letter-spacing: 0.03em;
+}
+
+.phase-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--hack-cyan);
+  animation: pulse 1.2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.cursor-blink {
+  color: var(--hack-green);
+  animation: blink 1s step-end infinite;
+  margin-left: 1px;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
 }
 
 .chat-input-bar {

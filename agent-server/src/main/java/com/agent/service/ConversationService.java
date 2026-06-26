@@ -6,6 +6,7 @@ import com.agent.common.BusinessException;
 import com.agent.dto.AppendMessageRequest;
 import com.agent.dto.ConversationResponse;
 import com.agent.dto.CreateConversationRequest;
+import com.agent.dto.MessagePageResponse;
 import com.agent.dto.MessageResponse;
 import com.agent.entity.Conversation;
 import com.agent.entity.Message;
@@ -17,6 +18,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -67,6 +70,40 @@ public class ConversationService {
         conversationMapper.deleteById(conversation.getId());
     }
 
+    /** 默认每页条数 */
+    public static final int DEFAULT_MESSAGE_PAGE_SIZE = 30;
+
+    /**
+     * 分页加载消息（聊天区滚动分页）。
+     * <ul>
+     *   <li>{@code beforeId=null}：加载最新一页</li>
+     *   <li>{@code beforeId=xxx}：加载 id 更早的一页，用于上滑加载历史</li>
+     * </ul>
+     */
+    public MessagePageResponse listMessagesPage(Long conversationId, Integer limit, Long beforeId) {
+        requireOwnedConversation(conversationId);
+        int pageSize = limit == null || limit <= 0 ? DEFAULT_MESSAGE_PAGE_SIZE : Math.min(limit, 100);
+
+        LambdaQueryWrapper<Message> wrapper = new LambdaQueryWrapper<Message>()
+                .eq(Message::getConversationId, conversationId);
+        if (beforeId != null) {
+            wrapper.lt(Message::getId, beforeId);
+        }
+        wrapper.orderByDesc(Message::getId).last("LIMIT " + (pageSize + 1));
+
+        List<Message> batch = new ArrayList<>(messageMapper.selectList(wrapper));
+        boolean hasMore = batch.size() > pageSize;
+        if (hasMore) {
+            batch = batch.subList(0, pageSize);
+        }
+        Collections.reverse(batch);
+
+        return new MessagePageResponse(
+                batch.stream().map(this::toMessageResponse).toList(),
+                hasMore
+        );
+    }
+
     /**
      * 按时间正序返回会话内全部消息。
      */
@@ -87,7 +124,15 @@ public class ConversationService {
      */
     @Transactional
     public MessageResponse appendMessage(Long conversationId, AppendMessageRequest request) {
-        Conversation conversation = requireOwnedConversation(conversationId);
+        return appendMessage(currentUserId(), conversationId, request);
+    }
+
+    /**
+     * 指定 userId 追加消息，供异步线程（无 Sa-Token Web 上下文）调用。
+     */
+    @Transactional
+    public MessageResponse appendMessage(Long userId, Long conversationId, AppendMessageRequest request) {
+        Conversation conversation = requireOwnedConversation(conversationId, userId);
         String content = StrUtil.trim(request.getContent());
         if (StrUtil.isBlank(content)) {
             throw new BusinessException("消息内容不能为空");
@@ -143,13 +188,18 @@ public class ConversationService {
         return StrUtil.subPre(trimmed, 30) + "\u2026";
     }
 
-    /** 校验会话存在且归属当前用户。 */
+    /** 校验会话存在且归属指定用户（Web 请求线程使用当前登录用户）。 */
     private Conversation requireOwnedConversation(Long conversationId) {
+        return requireOwnedConversation(conversationId, currentUserId());
+    }
+
+    /** 校验会话存在且归属指定用户。 */
+    private Conversation requireOwnedConversation(Long conversationId, Long userId) {
         Conversation conversation = conversationMapper.selectById(conversationId);
         if (conversation == null) {
             throw new BusinessException("会话不存在");
         }
-        if (!conversation.getUserId().equals(currentUserId())) {
+        if (!conversation.getUserId().equals(userId)) {
             throw new BusinessException("无权访问该会话");
         }
         return conversation;

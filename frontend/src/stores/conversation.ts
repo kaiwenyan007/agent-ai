@@ -7,7 +7,8 @@ import {
   createConversation,
   deleteConversation,
   listConversations,
-  listMessages,
+  listMessagesPage,
+  MESSAGE_PAGE_SIZE,
 } from '../api/conversation'
 import type { ChatMessage, Conversation } from '../types/api'
 
@@ -16,7 +17,8 @@ export const useConversationStore = defineStore('conversation', () => {
   const activeId = ref<number | null>(null)
   const messages = ref<ChatMessage[]>([])
   const loading = ref(false)
-  /** 是否已拉取过会话列表（避免重复 bootstrap） */
+  const loadingMore = ref(false)
+  const hasMoreMessages = ref(false)
   const initialized = ref(false)
   const streaming = ref(false)
 
@@ -27,7 +29,6 @@ export const useConversationStore = defineStore('conversation', () => {
     }
   }
 
-  /** 首次进入 CHAT 页时加载会话列表 */
   async function bootstrap() {
     if (initialized.value) {
       return
@@ -45,10 +46,66 @@ export const useConversationStore = defineStore('conversation', () => {
     conversations.value = await listConversations()
   }
 
-  /** 切换会话并加载消息 */
+  /** 加载会话最新一页消息 */
   async function selectConversation(id: number) {
     activeId.value = id
-    messages.value = await listMessages(id)
+    loading.value = true
+    try {
+      const page = await listMessagesPage(id, { limit: MESSAGE_PAGE_SIZE })
+      messages.value = page.messages
+      hasMoreMessages.value = page.hasMore
+    } finally {
+      loading.value = false
+    }
+  }
+
+  /** 上滑加载更早消息，返回 prepend 前的 scrollHeight 供恢复滚动位置 */
+  async function loadOlderMessages(): Promise<number | null> {
+    if (!activeId.value || loadingMore.value || !hasMoreMessages.value) {
+      return null
+    }
+    const firstReal = messages.value.find((item) => item.id > 0)
+    if (!firstReal) {
+      return null
+    }
+
+    loadingMore.value = true
+    try {
+      const page = await listMessagesPage(activeId.value, {
+        limit: MESSAGE_PAGE_SIZE,
+        beforeId: firstReal.id,
+      })
+      if (page.messages.length === 0) {
+        hasMoreMessages.value = false
+        return null
+      }
+      messages.value = [...page.messages, ...messages.value]
+      hasMoreMessages.value = page.hasMore
+      return page.messages.length
+    } finally {
+      loadingMore.value = false
+    }
+  }
+
+  /** 流式结束后同步服务端最新消息（不丢弃已加载的历史） */
+  async function syncAfterStream() {
+    if (!activeId.value) {
+      return
+    }
+    const page = await listMessagesPage(activeId.value, { limit: MESSAGE_PAGE_SIZE })
+    if (!hasMoreMessages.value) {
+      messages.value = page.messages
+      hasMoreMessages.value = page.hasMore
+      return
+    }
+    const realMessages = messages.value.filter((item) => item.id > 0)
+    const lastId = realMessages.length > 0 ? realMessages[realMessages.length - 1].id : 0
+    const newer = page.messages.filter((item) => item.id > lastId)
+    if (newer.length > 0) {
+      messages.value = [...realMessages, ...newer]
+    } else {
+      messages.value = realMessages
+    }
   }
 
   async function createNew() {
@@ -56,6 +113,7 @@ export const useConversationStore = defineStore('conversation', () => {
     conversations.value.unshift(created)
     activeId.value = created.id
     messages.value = []
+    hasMoreMessages.value = false
   }
 
   async function deleteActive() {
@@ -66,12 +124,33 @@ export const useConversationStore = defineStore('conversation', () => {
     await deleteConversation(id)
     conversations.value = conversations.value.filter((item) => item.id !== id)
     activeId.value = conversations.value[0]?.id ?? null
-    messages.value = activeId.value ? await listMessages(activeId.value) : []
+    if (activeId.value) {
+      await selectConversation(activeId.value)
+    } else {
+      messages.value = []
+      hasMoreMessages.value = false
+    }
   }
 
-  /** 侧栏会话标题截断（对标 agent-demo 20 字） */
   function truncateTitle(title: string, max = 20) {
     return title.length > max ? `${title.slice(0, max)}…` : title
+  }
+
+  function appendMessageChunk(messageId: number, chunk: string) {
+    const idx = messages.value.findIndex((item) => item.id === messageId)
+    if (idx < 0) {
+      return
+    }
+    const current = messages.value[idx]
+    messages.value[idx] = { ...current, content: current.content + chunk }
+  }
+
+  function setMessageContent(messageId: number, content: string) {
+    const idx = messages.value.findIndex((item) => item.id === messageId)
+    if (idx < 0) {
+      return
+    }
+    messages.value[idx] = { ...messages.value[idx], content }
   }
 
   return {
@@ -79,14 +158,20 @@ export const useConversationStore = defineStore('conversation', () => {
     activeId,
     messages,
     loading,
+    loadingMore,
+    hasMoreMessages,
     initialized,
     streaming,
     bootstrap,
     loadConversations,
     refreshConversations,
     selectConversation,
+    loadOlderMessages,
+    syncAfterStream,
     createNew,
     deleteActive,
     truncateTitle,
+    appendMessageChunk,
+    setMessageContent,
   }
 })

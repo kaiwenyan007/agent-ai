@@ -96,7 +96,9 @@
 | GET | `/api/conversations` | 是 | 当前用户会话列表，按更新时间倒序 |
 | POST | `/api/conversations` | 是 | 新建会话；title 可选 |
 | DELETE | `/api/conversations/{id}` | 是 | 删除会话（逻辑删除） |
-| GET | `/api/conversations/{id}/messages` | 是 | 会话消息列表，按时间正序 |
+| GET | `/api/conversations/{id}/messages?limit=30` | 是 | 加载最新一页（默认 30 条） |
+| GET | `/api/conversations/{id}/messages?limit=30&beforeId=` | 是 | 上滑加载更早消息 |
+| GET | `/api/conversations/{id}/messages` | 是 | 全量加载（无 limit 时，兼容） |
 | POST | `/api/conversations/{id}/messages` | 是 | 追加消息；role 默认 user |
 
 > v0.5 起对话主路径为 `/api/chat/stream`；本接口仍可用于手动追加或调试。
@@ -120,6 +122,7 @@
 
 | event | data | 说明 |
 |-------|------|------|
+| `status` | 文本 | 阶段提示（保存消息、加载上下文、连接模型等） |
 | `delta` | 文本片段 | 模型输出增量 |
 | `done` | `{"userMessageId":1,"assistantMessageId":2}` | 流结束，消息已落库 |
 | `error` | 错误信息 | 调用失败 |

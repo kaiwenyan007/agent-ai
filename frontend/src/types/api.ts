@@ -50,3 +50,9 @@ export interface ModelsResponse {
   /** true=远程拉取，false=本地兜底列表 */
   fromRemote: boolean
 }
+
+/** 消息分页响应 */
+export interface MessagePage {
+  messages: ChatMessage[]
+  hasMore: boolean
+}

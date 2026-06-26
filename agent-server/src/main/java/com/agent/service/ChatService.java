@@ -14,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.metadata.Usage;
@@ -34,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -74,28 +76,34 @@ public class ChatService {
 
         UserApiConfig config = requireConfig(userId);
 
+        SseEmitter emitter = new SseEmitter(300_000L);
+        AtomicReference<StringBuilder> assistantContent = new AtomicReference<>(new StringBuilder());
+        AtomicReference<Usage> usageRef = new AtomicReference<>();
+        AtomicReference<String> streamedText = new AtomicReference<>("");
+        AtomicBoolean firstDelta = new AtomicBoolean(true);
+
         // 1. 先落库 user 消息，保证刷新后可见
+        sendStatus(emitter, "正在保存你的消息…");
         AppendMessageRequest userRequest = new AppendMessageRequest();
         userRequest.setContent(prompt);
         userRequest.setRole("user");
         MessageResponse userMessage = conversationService.appendMessage(conversationId, userRequest);
 
         // 2. 加载完整历史（含刚写入的 user 消息）供多轮上下文
+        sendStatus(emitter, "正在加载对话上下文…");
         List<MessageResponse> history = conversationService.listMessages(conversationId);
-        List<org.springframework.ai.chat.messages.Message> aiMessages =
+        List<Message> aiMessages =
                 history.stream().map(this::toAiMessage).toList();
         ChatClient chatClient = buildChatClient(config);
 
-        SseEmitter emitter = new SseEmitter(300_000L);
-        AtomicReference<StringBuilder> assistantContent = new AtomicReference<>(new StringBuilder());
-        AtomicReference<Usage> usageRef = new AtomicReference<>();
+        sendStatus(emitter, "正在连接 " + config.getModel() + "…");
 
-        // 3. 订阅 Spring AI 流式响应，逐 chunk 推送 SSE
+        // 3. 订阅 Spring AI 流式响应，逐 delta 推送 SSE（避免 cumulative 文本重复）
         Disposable subscription = chatClient.prompt(new Prompt(aiMessages))
                 .stream()
                 .chatResponse()
                 .subscribe(
-                        response -> handleChunk(emitter, assistantContent, usageRef, response),
+                        response -> handleChunk(emitter, assistantContent, usageRef, streamedText, firstDelta, response),
                         error -> handleStreamError(emitter, error),
                         () -> handleStreamComplete(
                                 emitter,
@@ -122,18 +130,46 @@ public class ChatService {
         return emitter;
     }
 
-    /** 推送单个文本片段；同时累积完整回复与 usage 元数据。 */
+    /** 推送阶段状态（ChatGPT 式「正在做什么」提示）。 */
+    private void sendStatus(SseEmitter emitter, String message) {
+        try {
+            emitter.send(SseEmitter.event().name("status").data(message));
+        } catch (IOException ex) {
+            throw new BusinessException("流式推送失败: " + ex.getMessage());
+        }
+    }
+
+    /**
+     * 推送增量文本片段。
+     * Spring AI 流式有时返回 cumulative 文本，此处只取相对上次的 delta。
+     */
     private void handleChunk(
             SseEmitter emitter,
             AtomicReference<StringBuilder> assistantContent,
             AtomicReference<Usage> usageRef,
+            AtomicReference<String> streamedText,
+            AtomicBoolean firstDelta,
             ChatResponse response) {
         try {
             if (response.getResult() != null && response.getResult().getOutput() != null) {
-                String chunk = response.getResult().getOutput().getText();
-                if (StrUtil.isNotEmpty(chunk)) {
-                    assistantContent.get().append(chunk);
-                    emitter.send(SseEmitter.event().name("delta").data(chunk));
+                String text = response.getResult().getOutput().getText();
+                if (StrUtil.isNotEmpty(text)) {
+                    String prev = streamedText.get();
+                    String delta;
+                    if (text.startsWith(prev)) {
+                        delta = text.substring(prev.length());
+                    } else {
+                        delta = text;
+                    }
+                    streamedText.set(text);
+
+                    if (StrUtil.isNotEmpty(delta)) {
+                        assistantContent.get().append(delta);
+                        if (firstDelta.compareAndSet(true, false)) {
+                            sendStatus(emitter, "正在生成回复…");
+                        }
+                        emitter.send(SseEmitter.event().name("delta").data(delta));
+                    }
                 }
             }
             // 部分模型在最后一个 chunk 才返回 usage
@@ -181,7 +217,9 @@ public class ChatService {
                 AppendMessageRequest assistantRequest = new AppendMessageRequest();
                 assistantRequest.setContent(reply);
                 assistantRequest.setRole("assistant");
-                MessageResponse assistantMessage = conversationService.appendMessage(conversationId, assistantRequest);
+                // 虚拟线程无 HttpServletRequest，须传入请求线程已捕获的 userId
+                MessageResponse assistantMessage =
+                        conversationService.appendMessage(userId, conversationId, assistantRequest);
 
                 recordTokenUsage(userId, conversationId, config.getModel(), usageRef.get());
 

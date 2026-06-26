@@ -21,6 +21,8 @@ export interface ChatStreamDone {
 }
 
 export interface ChatStreamHandlers {
+  /** 后端阶段提示，如「正在连接模型…」 */
+  onStatus?: (message: string) => void
   onDelta: (text: string) => void
   onDone: (payload: ChatStreamDone) => void
   onError: (message: string) => void
@@ -42,7 +44,9 @@ function parseSseBlock(block: string, handlers: ChatStreamHandlers) {
   if (!data && event === 'message') {
     return
   }
-  if (event === 'delta') {
+  if (event === 'status') {
+    handlers.onStatus?.(data)
+  } else if (event === 'delta') {
     handlers.onDelta(data)
   } else if (event === 'done') {
     handlers.onDone(JSON.parse(data) as ChatStreamDone)

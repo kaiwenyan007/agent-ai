@@ -2,7 +2,7 @@
  * 会话与消息 CRUD，对应后端 /api/conversations。
  * v0.5 主对话路径见 api/chat.ts 的 streamChat（/api/chat/stream）。
  */
-import type { ApiResponse, Conversation, ChatMessage } from '../types/api'
+import type { ApiResponse, Conversation, ChatMessage, MessagePage } from '../types/api'
 import { apiClient } from './client'
 import { toApiError } from './errors'
 
@@ -47,7 +47,33 @@ export async function deleteConversation(id: number) {
   }
 }
 
-/** GET /api/conversations/{id}/messages — 按时间正序 */
+/** 每页消息条数 */
+export const MESSAGE_PAGE_SIZE = 30
+
+/** GET /api/conversations/{id}/messages?limit=&beforeId= — 分页加载 */
+export async function listMessagesPage(
+  conversationId: number,
+  options?: { limit?: number; beforeId?: number },
+) {
+  try {
+    const params: Record<string, number> = { limit: options?.limit ?? MESSAGE_PAGE_SIZE }
+    if (options?.beforeId != null) {
+      params.beforeId = options.beforeId
+    }
+    const { data } = await apiClient.get<ApiResponse<MessagePage>>(
+      `/api/conversations/${conversationId}/messages`,
+      { params },
+    )
+    if (data.code !== 0) {
+      throw new Error(data.message || '加载消息失败')
+    }
+    return data.data
+  } catch (error) {
+    throw new Error(toApiError(error, '加载消息失败'))
+  }
+}
+
+/** GET /api/conversations/{id}/messages — 全量（兼容） */
 export async function listMessages(conversationId: number) {
   try {
     const { data } = await apiClient.get<ApiResponse<ChatMessage[]>>(

@@ -115,7 +115,9 @@ watch(
 
 .app-root {
   display: flex;
-  min-height: 100vh;
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
 }
 
 .app-sidebar {
@@ -127,6 +129,7 @@ watch(
   background: linear-gradient(180deg, #0a0f18 0%, var(--hack-bg) 100%);
   border-right: 1px solid var(--hack-border);
   overflow-y: auto;
+  height: 100%;
 }
 
 .sidebar-user {
@@ -151,21 +154,38 @@ watch(
 .app-main {
   flex: 1;
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
   position: relative;
   z-index: 1;
+}
+
+.app-main > * {
+  flex: 1;
+  min-height: 0;
 }
 
 @media (max-width: 768px) {
   .app-root {
     flex-direction: column;
+    height: auto;
+    max-height: none;
+    overflow: visible;
   }
 
   .app-sidebar {
     width: 100%;
+    height: auto;
+    max-height: 40vh;
     border-right: none;
     border-bottom: 1px solid var(--hack-border);
+  }
+
+  .app-main {
+    height: calc(100vh - 40vh);
+    min-height: 320px;
   }
 
   .logout-btn {

@@ -4,7 +4,9 @@ import com.agent.common.ApiResponse;
 import com.agent.dto.AppendMessageRequest;
 import com.agent.dto.ConversationResponse;
 import com.agent.dto.CreateConversationRequest;
+import com.agent.dto.MessagePageResponse;
 import com.agent.dto.MessageResponse;
+import org.springframework.web.bind.annotation.RequestParam;
 import com.agent.service.ConversationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -59,10 +61,18 @@ public class ConversationController {
     }
 
     /**
-     * 获取会话下的全部消息，按创建时间正序。
+     * 获取会话消息。
+     * <p>
+     * 传 {@code limit} 时分页返回；{@code beforeId} 用于上滑加载更早消息。
      */
     @GetMapping("/{id}/messages")
-    public ApiResponse<List<MessageResponse>> listMessages(@PathVariable Long id) {
+    public ApiResponse<?> listMessages(
+            @PathVariable Long id,
+            @RequestParam(required = false) Integer limit,
+            @RequestParam(required = false) Long beforeId) {
+        if (limit != null || beforeId != null) {
+            return ApiResponse.ok(conversationService.listMessagesPage(id, limit, beforeId));
+        }
         return ApiResponse.ok(conversationService.listMessages(id));
     }
 
