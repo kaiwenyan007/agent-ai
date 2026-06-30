@@ -12,3 +12,8 @@ agent:
     api-key: sk-xxx
     base-url: https://api.deepseek.com
     model: deepseek-chat
+  cli:
+    llm:
+      api-key: sk-xxx
+      base-url: https://api.deepseek.com
+      model: deepseek-chat

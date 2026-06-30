@@ -20,6 +20,7 @@
 
     <modules>
         <module>agent-server</module>
+        <module>agent-cli</module>
     </modules>
 
     <properties>
@@ -29,6 +30,7 @@
         <hutool.version>5.8.34</hutool.version>
         <spring-ai.version>1.0.0</spring-ai.version>
         <sa-token.version>1.40.0</sa-token.version>
+        <picocli.version>4.7.6</picocli.version>
     </properties>
 
     <dependencyManagement>
@@ -59,6 +61,11 @@
                 <groupId>cn.dev33</groupId>
                 <artifactId>sa-token-spring-boot3-starter</artifactId>
                 <version>${sa-token.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>info.picocli</groupId>
+                <artifactId>picocli-spring-boot-starter</artifactId>
+                <version>${picocli.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

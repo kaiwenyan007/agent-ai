@@ -9,9 +9,10 @@
 | v0.3 | [v0.3-api-config.md](./v0.3-api-config.md) | ✅ 已完成 |
 | v0.4 | [v0.4-conversation.md](./v0.4-conversation.md) | ✅ 已完成 |
 | v0.5 | [v0.5-spring-ai-chat.md](./v0.5-spring-ai-chat.md) | ✅ 已完成 |
-| v0.6 | [v0.6-tools.md](./v0.6-tools.md) | 待实现 |
+| v0.6 | [v0.6-tools.md](./v0.6-tools.md) | ✅ 已完成 |
 | v0.7 | [v0.7-rag.md](./v0.7-rag.md) | 待实现 |
 | v0.8 | [v0.8-polish.md](./v0.8-polish.md) | 待实现 |
+| v0.9 | [v0.9-cli.md](./v0.9-cli.md) | ✅ 已完成 |
 
 每篇文档结构统一：
 

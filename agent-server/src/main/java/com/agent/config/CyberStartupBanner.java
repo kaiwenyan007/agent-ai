@@ -1,11 +1,13 @@
 package com.agent.config;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.ApplicationListener;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
 @Component
+@ConditionalOnWebApplication
 public class CyberStartupBanner implements ApplicationListener<ApplicationReadyEvent> {
 
     @Override

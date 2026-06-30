@@ -26,6 +26,14 @@ logging:
   level:
     com.agent: debug
 
+agent:
+  project-root: .
+  cli:
+    llm:
+      api-key: ${OPENAI_API_KEY:}
+      base-url: ${OPENAI_BASE_URL:https://api.deepseek.com}
+      model: ${OPENAI_MODEL:deepseek-chat}
+
 sa-token:
   token-name: Authorization
   token-prefix: Bearer

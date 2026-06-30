@@ -47,12 +47,54 @@ mvn -pl agent-server spring-boot:run "-Dspring-boot.run.profiles=h2"
 | v0.6 | Tool Calling 工具集 | [iterations/v0.6](doc/iterations/v0.6-tools.md) |
 | v0.7 | RAG 知识库 | [iterations/v0.7](doc/iterations/v0.7-rag.md) |
 | v0.8 | 统计 + 预热 + 前端完善 | [iterations/v0.8](doc/iterations/v0.8-polish.md) |
+| v0.9 | CLI 命令行客户端 | [iterations/v0.9](doc/iterations/v0.9-cli.md) |
+
+## CLI 命令行（v0.9）
+
+对标 Python `main.py`，支持 **full**（登录 + DB 持久化）与 **simple**（环境变量，无需登录）双模式。
+
+### full 模式（默认）
+
+```powershell
+# 需 JDK 21 + 数据库（MySQL 或 H2）
+mvn -pl agent-cli -am spring-boot:run "-Dspring-boot.run.profiles=h2"
+```
+
+流程：**登录 → 若未配置 API 则进入配置向导 → 进入聊天 REPL**。
+
+```powershell
+# 子命令
+mvn -pl agent-cli -am spring-boot:run "-Dspring-boot.run.profiles=h2" "-Dspring-boot.run.arguments=login"
+mvn -pl agent-cli -am spring-boot:run "-Dspring-boot.run.profiles=h2" "-Dspring-boot.run.arguments=register"
+mvn -pl agent-cli -am spring-boot:run "-Dspring-boot.run.profiles=h2" "-Dspring-boot.run.arguments=config"
+```
+
+登录态保存在 `~/.agent-ai/cli-session.json`。
+
+### simple 模式
+
+```powershell
+$env:OPENAI_API_KEY = "sk-xxx"
+mvn -pl agent-cli -am spring-boot:run "-Dspring-boot.run.profiles=h2" "-Dspring-boot.run.arguments=--simple"
+```
+
+或在 `application-local.yml` 配置 `agent.cli.llm.*`。
+
+### REPL 内置命令
+
+| 输入 | 说明 |
+|------|------|
+| `quit` / `q` | 退出 |
+| `/clear` | 清空历史（full 模式新建会话） |
+| `/config` | 重新配置 API（full 模式） |
+| `/logout` | 退出登录（full 模式） |
 
 ## 项目结构
 
 ```
 agent-ai/
 ├── agent-server/          # Spring Boot 后端
+├── agent-cli/             # CLI 命令行客户端（v0.9）
 ├── frontend/              # Vue 前端（v0.4 起）
 ├── sql/                   # MySQL 建表脚本
 ├── doc/                   # 学习计划与运维文档

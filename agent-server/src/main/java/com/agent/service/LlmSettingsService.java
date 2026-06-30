@@ -77,6 +77,42 @@ public class LlmSettingsService {
     }
 
     /**
+     * 为指定用户拉取模型；apiKey 为空时回退到库中已保存 Key。
+     */
+    public ModelsResponse fetchModelsForUser(Long userId, String baseUrl, String apiKey) {
+        UserApiConfig config = requireConfig(userId);
+        String resolvedKey = StrUtil.isNotBlank(apiKey) ? StrUtil.trim(apiKey) : config.getApiKey();
+        return fetchModels(baseUrl, resolvedKey);
+    }
+
+    /**
+     * 用指定凭据拉取模型列表（CLI 配置向导使用，不要求 Key 已入库）。
+     */
+    public ModelsResponse fetchModelsWithCredentials(String baseUrl, String apiKey) {
+        return fetchModels(baseUrl, apiKey);
+    }
+
+    /** 读取指定用户的 LLM 配置（Key 脱敏）。 */
+    public LlmSettingsResponse getSettings(Long userId) {
+        UserApiConfig config = requireConfig(userId);
+        return toResponse(config);
+    }
+
+    /**
+     * 保存指定用户的 LLM 配置；apiKey 留空则保持原值。
+     */
+    public LlmSettingsResponse saveSettings(Long userId, UpdateLlmSettingsRequest request) {
+        UserApiConfig config = requireConfig(userId);
+        config.setBaseUrl(StrUtil.trim(request.getBaseUrl()));
+        config.setModel(StrUtil.trim(request.getModel()));
+        if (StrUtil.isNotBlank(request.getApiKey())) {
+            config.setApiKey(StrUtil.trim(request.getApiKey()));
+        }
+        userApiConfigMapper.updateById(config);
+        return toResponse(config);
+    }
+
+    /**
      * 调用 OpenAI 兼容 {@code GET /models} 接口。
      * Key 或 URL 缺失时返回本地默认列表，{@code fromRemote=false}。
      */
